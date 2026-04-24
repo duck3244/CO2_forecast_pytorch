@@ -1,0 +1,67 @@
+# CO2 Forecast Configuration
+seed: 42
+
+data:
+  url: "https://gml.noaa.gov/webdata/ccgg/trends/co2/co2_mm_mlo.txt"
+  sequence_length: 24  # 2 years of monthly data
+  forecast_horizon: 12  # 1 year ahead prediction
+  train_ratio: 0.8
+  val_ratio: 0.1
+  test_ratio: 0.1
+
+preprocessing:
+  normalize: true
+  # Target transformation (detrend and yoy_diff are mutually exclusive)
+  detrend: false        # Fit polynomial trend on train; predict residual; restore at inverse
+  trend_degree: 2       # 1 = linear, 2 = quadratic (captures CO2 acceleration)
+  yoy_diff: true        # Replace co2 with 12-month difference; inverse adds raw_co2[t-12]
+  add_seasonal_features: true
+  add_trend_features: true
+  add_lag_features: true
+  lag_periods: [1, 12, 24]
+
+models:
+  lstm:
+    input_size: 9  # co2 + month + month_sin + month_cos + trend + trend_normalized + lag features (3)
+    hidden_size: 64
+    num_layers: 2
+    dropout: 0.2
+    bidirectional: false
+  
+  transformer:
+    d_model: 64
+    nhead: 8
+    num_layers: 4
+    dropout: 0.1
+    
+  hybrid:
+    lstm_hidden: 32
+    lstm_layers: 2
+    transformer_d_model: 32
+    transformer_nhead: 4
+    transformer_layers: 2
+    fusion_hidden: 64
+    dropout: 0.1
+
+training:
+  batch_size: 32
+  learning_rate: 0.001
+  epochs: 200
+  patience: 20
+  weight_decay: 0.00001
+  scheduler: "ReduceLROnPlateau"
+  scheduler_patience: 10
+  scheduler_factor: 0.5
+
+ensemble:
+  models: ["lstm", "transformer", "hybrid"]
+  weights: [0.3, 0.3, 0.4]  # Can be learned or fixed
+
+evaluation:
+  metrics: ["mse", "mae", "mape", "r2"]
+  
+paths:
+  data_dir: "data"
+  model_dir: "models"
+  log_dir: "logs"
+  plot_dir: "plots"
